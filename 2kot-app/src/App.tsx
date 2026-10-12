@@ -25,7 +25,7 @@ import { Card, SectionHeader } from './components/ui/Card';
 import { StatusIndicator } from './components/ui/StatusIndicator';
 
 const viewTitles: Record<AppView, { title: string; subtitle: string }> = {
-  dashboard: { title: 'Opponent Tracker', subtitle: 'Live game, matchup captures and head-to-head history' },
+  dashboard: { title: 'Dashboard', subtitle: 'Live game, matchup captures and head-to-head history' },
   opponents: { title: 'Opponents', subtitle: 'Everyone you have played and your record against them' },
   stats: { title: 'Statistics', subtitle: 'Overall record and full game history' },
   settings: { title: 'Settings', subtitle: 'Capture and tracking preferences' },

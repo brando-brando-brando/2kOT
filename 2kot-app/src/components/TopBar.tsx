@@ -1,5 +1,6 @@
 import { FlaskConical, Settings } from 'lucide-react';
 import type { CaptureState } from '../types/dashboard';
+import { BrandMark } from './ui/BrandMark';
 import { StatusIndicator } from './ui/StatusIndicator';
 
 interface TopBarProps {
@@ -16,7 +17,9 @@ export function TopBar({ title, subtitle, captureState, showSampleBadge, onOpenS
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border-soft bg-background-secondary/50 px-4 backdrop-blur-xl sm:px-6">
-      <div className="flex min-w-0 items-baseline gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        {/* The sidebar hides its wordmark when collapsed, so it moves up here */}
+        <BrandMark className="shrink-0 border-r border-border-muted pr-3 lg:hidden" />
         <h1 className="truncate text-base font-semibold text-foreground">{title}</h1>
         {subtitle && (
           <p className="hidden truncate text-xs text-foreground-secondary md:block">{subtitle}</p>
@@ -33,7 +36,7 @@ export function TopBar({ title, subtitle, captureState, showSampleBadge, onOpenS
             Sample data
           </span>
         )}
-        <div className="hidden items-center gap-4 sm:flex">
+        <div className="hidden items-center gap-4 md:flex">
           <StatusIndicator
             state={captureState === 'disconnected' ? 'disconnected' : 'connected'}
             label={captureState === 'disconnected' ? 'Capture not connected' : 'Capture connected'}

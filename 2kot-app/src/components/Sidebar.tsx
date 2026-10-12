@@ -1,6 +1,7 @@
 import { BarChart3, Check, Crosshair, LayoutDashboard, Play, Settings, Users } from 'lucide-react';
 import { cn } from '../utils/cn';
 import type { AppView, CaptureState } from '../types/dashboard';
+import { BrandMark } from './ui/BrandMark';
 import { StatusIndicator } from './ui/StatusIndicator';
 
 const navItems: { id: AppView; icon: typeof LayoutDashboard; label: string }[] = [
@@ -30,13 +31,8 @@ export function Sidebar({ currentView, onViewChange, features, captureState, onS
         >
           <Crosshair className="size-5" />
         </span>
-        <div className="hidden min-w-0 lg:block">
-          <div className="truncate text-sm font-bold leading-tight text-foreground">
-            NBA 2K26 <span className="font-semibold text-primary">Opponent Tracker</span>
-          </div>
-          <div className="eyebrow mt-0.5">Game Analyzer</div>
-        </div>
-        <span className="sr-only lg:hidden">NBA 2K26 Opponent Tracker, Game Analyzer</span>
+        <BrandMark className="hidden lg:block" />
+        <span className="sr-only lg:hidden">2KOT, Opponent Tracker</span>
       </div>
 
       <nav aria-label="Main" className="flex-1 space-y-1 overflow-y-auto p-2 lg:p-3">

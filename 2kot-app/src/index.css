@@ -196,6 +196,23 @@
       0 2px 0 rgba(0, 0, 0, 0.45);
   }
 
+  .brand-mark {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    line-height: 1;
+  }
+
+  .brand-accent {
+    /* Padding keeps the italic overhang from being clipped by the text mask */
+    padding-right: 0.12em;
+    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   .eyebrow {
     font-size: 10.5px;
     font-weight: 600;
