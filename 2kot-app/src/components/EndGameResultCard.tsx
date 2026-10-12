@@ -1,73 +1,66 @@
 import { cn } from '../utils/cn';
+import type { EndGameResult } from '../types/dashboard';
+import { Card, SectionHeader } from './ui/Card';
+import { FrameCaption, ScreenshotFrame } from './ui/ScreenshotFrame';
 
 interface EndGameResultCardProps {
-  yourScore?: number;
-  opponentScore?: number;
-  outcome?: 'win' | 'loss';
-  screenshotUrl?: string;
-  timestamp?: string;
+  /** Result of the most recently finished game */
+  result: EndGameResult | null;
+  className?: string;
 }
 
-export function EndGameResultCard({
-  yourScore = 0,
-  opponentScore = 0,
-  outcome = 'win',
-  screenshotUrl,
-  timestamp = new Date().toLocaleTimeString(),
-}: EndGameResultCardProps) {
-  const isWin = outcome === 'win';
+export function EndGameResultCard({ result, className }: EndGameResultCardProps) {
+  const isWin = result?.outcome === 'win';
 
   return (
-    <div className={cn(
-      "glass rounded-2xl overflow-hidden",
-      isWin ? "glow-success" : "glow-destructive"
-    )}>
-      {/* Screenshot Area */}
-      <div className="relative aspect-video bg-background-secondary flex items-center justify-center">
-        {screenshotUrl ? (
-          <img
-            src={screenshotUrl}
-            alt="End game screenshot"
-            className="w-full h-full object-cover"
-          />
+    <Card label="End game result" className={className}>
+      <SectionHeader title="End Game Result" note="(captured)" />
+
+      <ScreenshotFrame src={result?.frame.imageUrl} alt="End of game screen capture" scene="court">
+        {result ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 p-3">
+            <div className="rounded-md border border-white/10 bg-background/80 px-5 py-1.5 text-center backdrop-blur-sm">
+              <div
+                className={cn(
+                  'text-xs font-bold uppercase tracking-[0.18em]',
+                  isWin ? 'text-success' : 'text-destructive',
+                )}
+              >
+                {isWin ? 'You Won' : 'You Lost'}
+              </div>
+              <div className="text-2xl font-bold tabular-nums leading-tight text-foreground @sm:text-3xl">
+                {result.yourScore} - {result.opponentScore}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-md border border-white/10 bg-background/80 px-4 py-1.5 backdrop-blur-sm">
+              <div className="text-center">
+                <div className="text-[9px] font-semibold uppercase tracking-widest text-primary">
+                  Your Team
+                </div>
+                <div className="text-xl font-bold tabular-nums leading-tight text-foreground">
+                  {result.yourScore}
+                </div>
+              </div>
+              <span className="vs-mark text-sm">VS</span>
+              <div className="text-center">
+                <div className="text-[9px] font-semibold uppercase tracking-widest text-magenta">
+                  Opponent
+                </div>
+                <div className="text-xl font-bold tabular-nums leading-tight text-foreground">
+                  {result.opponentScore}
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
-          <div className="text-center">
-            <div className="text-6xl mb-2 opacity-30">🏆</div>
-            <div className="text-foreground-secondary opacity-50">End Game Result</div>
+          <div className="flex h-full items-center justify-center px-4 text-center text-xs text-foreground-secondary">
+            No end game screen captured yet
           </div>
         )}
+      </ScreenshotFrame>
 
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/50 to-transparent" />
-
-        {/* Result Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className={cn(
-              "px-4 py-2 rounded-full text-lg font-bold uppercase tracking-wider",
-              isWin ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"
-            )}>
-              {isWin ? 'VICTORY' : 'DEFEAT'}
-            </div>
-            <div className="text-xs text-foreground-secondary opacity-70">
-              {timestamp}
-            </div>
-          </div>
-
-          {/* Score */}
-          <div className="flex items-center justify-center gap-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-foreground">{yourScore}</div>
-              <div className="text-xs text-foreground-secondary">YOU</div>
-            </div>
-            <div className="text-2xl font-bold text-foreground-secondary">-</div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-foreground">{opponentScore}</div>
-              <div className="text-xs text-foreground-secondary">OPPONENT</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <FrameCaption capturedAt={result?.frame.capturedAt} label={result?.frame.label ?? 'End Game Screen'} />
+    </Card>
   );
 }

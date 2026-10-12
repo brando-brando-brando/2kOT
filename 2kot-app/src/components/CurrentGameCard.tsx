@@ -1,78 +1,90 @@
 import { cn } from '../utils/cn';
+import type { CurrentGame, GameStatus } from '../types/dashboard';
+import { Card, SectionHeader } from './ui/Card';
+import { MatchupPlate, PlayerSilhouette, VsMark } from './ui/Matchup';
+import { ScreenshotFrame } from './ui/ScreenshotFrame';
+
+const statusLabels: Record<GameStatus, string> = {
+  live: 'Game in Progress',
+  ended: 'Game Ended',
+  upcoming: 'Up Next',
+};
+
+const statusTone: Record<GameStatus, string> = {
+  live: 'text-success',
+  ended: 'text-foreground-secondary',
+  upcoming: 'text-primary',
+};
 
 interface CurrentGameCardProps {
-  opponentName?: string;
-  opponentRating?: number;
-  yourScore?: number;
-  opponentScore?: number;
-  quarter?: number;
-  timeRemaining?: string;
-  gameStatus?: 'live' | 'ended' | 'upcoming';
+  /** The game in progress; an "awaiting matchup" state is shown when null */
+  game: CurrentGame | null;
+  className?: string;
 }
 
-export function CurrentGameCard({
-  opponentName = 'Awaiting Matchup',
-  opponentRating = 0,
-  yourScore = 0,
-  opponentScore = 0,
-  quarter = 1,
-  timeRemaining = '12:00',
-  gameStatus = 'upcoming',
-}: CurrentGameCardProps) {
-  const isLive = gameStatus === 'live';
-  const isEnded = gameStatus === 'ended';
-
+export function CurrentGameCard({ game, className }: CurrentGameCardProps) {
   return (
-    <div className="glass rounded-2xl p-6 glow-cyan">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-foreground">Current Game</h2>
-        <div className={cn(
-          "px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider",
-          isLive ? "bg-success/20 text-success" : isEnded ? "bg-destructive/20 text-destructive" : "bg-primary/20 text-primary"
-        )}>
-          {gameStatus}
-        </div>
-      </div>
+    <Card label="Current game" className={className}>
+      <SectionHeader title="Current Game" />
 
-      {/* Matchup */}
-      <div className="flex items-center justify-between mb-6">
-        {/* Your Team */}
-        <div className="flex-1 text-center">
-          <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-background-secondary border-2 border-border flex items-center justify-center">
-            <span className="text-3xl font-bold text-primary">YOU</span>
+      <ScreenshotFrame
+        src={game?.frame?.imageUrl}
+        alt="Current matchup"
+        aspectClassName="aspect-[16/9] @2xl:aspect-[16/7]"
+        className="flex-1"
+      >
+        {game ? (
+          <div className="grid h-full grid-cols-[1fr_auto_1fr] grid-rows-[minmax(0,1fr)] items-center gap-3 px-3 pb-12 pt-3 @lg:gap-5 @lg:px-5">
+            {/* Opponent side */}
+            <div className="flex h-full min-w-0 items-end gap-3">
+              <PlayerSilhouette className="hidden w-[19cqw] text-secondary/55 drop-shadow-[0_0_18px_rgba(168,85,247,0.55)] @lg:block" />
+              <MatchupPlate
+                player={game.opponent}
+                tag="Your Matchup"
+                className="mb-1 max-w-56 flex-1 self-center"
+              />
+            </div>
+
+            <VsMark className="text-4xl @lg:text-5xl" />
+
+            {/* Your side */}
+            <div className="flex h-full min-w-0 items-end justify-end gap-3">
+              <div className="mb-1 self-center text-right">
+                <div className="eyebrow">Your team</div>
+                <div className="text-base font-bold text-foreground @lg:text-lg">
+                  {game.yourLabel ?? 'You'}
+                </div>
+              </div>
+              <PlayerSilhouette className="hidden w-[19cqw] text-primary/45 drop-shadow-[0_0_18px_rgba(0,217,255,0.4)] @lg:block" />
+            </div>
           </div>
-          <div className="text-2xl font-bold text-foreground">{yourScore}</div>
-        </div>
-
-        {/* VS */}
-        <div className="px-6">
-          <div className="text-2xl font-bold text-magenta text-glow-magenta">VS</div>
-        </div>
-
-        {/* Opponent */}
-        <div className="flex-1 text-center">
-          <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-background-secondary border-2 border-border flex items-center justify-center">
-            <span className="text-3xl font-bold text-foreground-secondary">?</span>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center px-4 pb-10 text-center">
+            <div className="text-lg font-semibold text-foreground">Awaiting matchup</div>
+            <p className="mt-1 max-w-sm text-xs text-foreground-secondary">
+              Opponent details will appear here once a matchup screen is captured.
+            </p>
           </div>
-          <div className="text-2xl font-bold text-foreground">{opponentScore}</div>
-        </div>
-      </div>
-
-      {/* Opponent Info */}
-      <div className="text-center mb-4">
-        <div className="text-xl font-bold text-foreground mb-1">{opponentName}</div>
-        {opponentRating > 0 && (
-          <div className="text-sm text-foreground-secondary">OVR {opponentRating}</div>
         )}
-      </div>
 
-      {/* Game Info */}
-      <div className="flex items-center justify-center gap-6 text-sm text-foreground-secondary">
-        <div className="flex items-center gap-2">
-          <span className="text-primary font-semibold">Q{quarter}</span>
-          <span>{timeRemaining}</span>
+        {/* Status bar: game state, quarter and clock */}
+        <div className="absolute inset-x-0 bottom-3 flex justify-center px-3">
+          <div className="flex items-center divide-x divide-border-soft rounded-full border border-border bg-background/75 text-sm backdrop-blur-sm">
+            <span
+              className={cn(
+                'px-4 py-1.5 text-xs font-semibold',
+                game ? statusTone[game.status] : 'text-foreground-secondary',
+              )}
+            >
+              {game ? statusLabels[game.status] : 'No game detected'}
+            </span>
+            <span className="flex items-center gap-2 px-4 py-1.5 font-semibold tabular-nums text-foreground">
+              <span>{game?.quarter ? `Q${game.quarter}` : 'Q–'}</span>
+              <span>{game?.clock ?? '--:--'}</span>
+            </span>
+          </div>
         </div>
-      </div>
-    </div>
+      </ScreenshotFrame>
+    </Card>
   );
 }

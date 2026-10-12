@@ -1,53 +1,54 @@
-import { cn } from '../utils/cn';
+import type { MatchupCapture } from '../types/dashboard';
+import { Card, SectionHeader } from './ui/Card';
+import { MatchupPlate, PlayerSilhouette, VsMark } from './ui/Matchup';
+import { FrameCaption, ScreenshotFrame } from './ui/ScreenshotFrame';
 
 interface MatchupCardProps {
-  opponentName?: string;
-  opponentRating?: number;
-  timestamp?: string;
-  screenshotUrl?: string;
+  /** Matchup screen captured at the start of the game */
+  matchup: MatchupCapture | null;
+  className?: string;
 }
 
-export function MatchupCard({
-  opponentName = 'No Matchup',
-  opponentRating = 0,
-  timestamp = new Date().toLocaleTimeString(),
-  screenshotUrl,
-}: MatchupCardProps) {
+export function MatchupCard({ matchup, className }: MatchupCardProps) {
+  const hasImage = Boolean(matchup?.frame.imageUrl);
+
   return (
-    <div className="glass rounded-2xl overflow-hidden glow-cyan">
-      {/* Screenshot Area */}
-      <div className="relative aspect-video bg-background-secondary flex items-center justify-center">
-        {screenshotUrl ? (
-          <img
-            src={screenshotUrl}
-            alt="Matchup screenshot"
-            className="w-full h-full object-cover"
-          />
+    <Card label="Live matchup" className={className}>
+      <SectionHeader title="Live Matchup" note="(captured at start)" />
+
+      <ScreenshotFrame src={matchup?.frame.imageUrl} alt="Matchup screen capture">
+        {!matchup ? (
+          <div className="flex h-full items-center justify-center px-4 text-center text-xs text-foreground-secondary">
+            No matchup screen captured yet
+          </div>
+        ) : hasImage ? (
+          // Real frame: keep it visible and only overlay the opponent's name.
+          <div className="absolute inset-x-0 bottom-0 p-3">
+            <div className="truncate text-base font-bold text-foreground">{matchup.opponent.name}</div>
+            {matchup.opponent.overall !== undefined && (
+              <div className="text-xs text-foreground-secondary">OVR {matchup.opponent.overall}</div>
+            )}
+          </div>
         ) : (
-          <div className="text-center">
-            <div className="text-6xl mb-2 opacity-30">🎮</div>
-            <div className="text-foreground-secondary opacity-50">Matchup Preview</div>
+          <div className="grid h-full grid-cols-[3fr_auto_2fr] grid-rows-[minmax(0,1fr)] items-center gap-3 p-3">
+            <div className="flex h-full min-w-0 items-end gap-2">
+              <PlayerSilhouette className="hidden w-[17cqw] text-secondary/55 @md:block" />
+              <MatchupPlate
+                player={matchup.opponent}
+                tag="The Matchup"
+                size="sm"
+                className="max-w-44 flex-1 self-center"
+              />
+            </div>
+            <VsMark className="text-3xl @md:text-4xl" />
+            <div className="flex h-full min-w-0 items-end justify-end">
+              <PlayerSilhouette className="hidden w-[19cqw] text-primary/40 @xs:block" />
+            </div>
           </div>
         )}
+      </ScreenshotFrame>
 
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/50 to-transparent" />
-
-        {/* Opponent Info Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xl font-bold text-foreground">{opponentName}</div>
-              {opponentRating > 0 && (
-                <div className="text-sm text-foreground-secondary">OVR {opponentRating}</div>
-              )}
-            </div>
-            <div className="text-xs text-foreground-secondary opacity-70">
-              {timestamp}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <FrameCaption capturedAt={matchup?.frame.capturedAt} label={matchup?.frame.label ?? 'Matchup Screen'} />
+    </Card>
   );
 }

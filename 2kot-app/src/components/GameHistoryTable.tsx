@@ -1,128 +1,80 @@
 import { cn } from '../utils/cn';
-
-interface GameHistoryItem {
-  id: number;
-  date: string;
-  opponent: string;
-  result: 'win' | 'loss';
-  yourScore: number;
-  opponentScore: number;
-  gameMode: string;
-  record: string;
-}
+import type { GameHistoryRow } from '../types/dashboard';
+import { formatDate, formatPercent } from '../utils/format';
+import { Card, SectionHeader, TextAction } from './ui/Card';
 
 interface GameHistoryTableProps {
-  games?: GameHistoryItem[];
+  games: GameHistoryRow[];
+  /** Maximum rows to show; all rows when omitted */
+  limit?: number;
+  onViewAll?: () => void;
+  className?: string;
 }
 
-const mockGames: GameHistoryItem[] = [
-  {
-    id: 1,
-    date: 'Oct 11, 2026',
-    opponent: 'KingJames23',
-    result: 'win',
-    yourScore: 102,
-    opponentScore: 98,
-    gameMode: 'Quick Match',
-    record: '12-3',
-  },
-  {
-    id: 2,
-    date: 'Oct 10, 2026',
-    opponent: 'StephCurry30',
-    result: 'loss',
-    yourScore: 95,
-    opponentScore: 108,
-    gameMode: 'Ranked',
-    record: '3-5',
-  },
-  {
-    id: 3,
-    date: 'Oct 9, 2026',
-    opponent: 'KD_35',
-    result: 'win',
-    yourScore: 115,
-    opponentScore: 110,
-    gameMode: 'Quick Match',
-    record: '15-7',
-  },
-  {
-    id: 4,
-    date: 'Oct 8, 2026',
-    opponent: 'Giannis_34',
-    result: 'win',
-    yourScore: 105,
-    opponentScore: 100,
-    gameMode: 'Ranked',
-    record: '2-1',
-  },
-  {
-    id: 5,
-    date: 'Oct 7, 2026',
-    opponent: 'Luka_77',
-    result: 'loss',
-    yourScore: 99,
-    opponentScore: 112,
-    gameMode: 'Quick Match',
-    record: '5-8',
-  },
-];
+const headCell = 'px-3 py-2 text-left text-xs font-medium text-foreground-secondary';
+const cell = 'px-3 py-2 whitespace-nowrap';
 
-export function GameHistoryTable({ games = mockGames }: GameHistoryTableProps) {
+export function GameHistoryTable({ games, limit, onViewAll, className }: GameHistoryTableProps) {
+  const rows = limit ? games.slice(0, limit) : games;
+
   return (
-    <div className="glass rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-foreground">Game History</h2>
-        <button className="text-sm text-primary hover:text-primary-hover font-medium transition-colors">
-          View All
-        </button>
-      </div>
+    <Card label="Game history" className={className}>
+      <SectionHeader
+        title="Game History"
+        action={onViewAll && <TextAction onClick={onViewAll}>View All</TextAction>}
+      />
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      <div className="panel-inset overflow-x-auto">
+        <table className="w-full min-w-[560px] border-collapse text-sm tabular-nums">
           <thead>
-            <tr className="text-left text-xs text-foreground-secondary uppercase tracking-wider">
-              <th className="pb-3 font-semibold">Date</th>
-              <th className="pb-3 font-semibold">Opponent</th>
-              <th className="pb-3 font-semibold">Result</th>
-              <th className="pb-3 font-semibold">Score</th>
-              <th className="pb-3 font-semibold">Mode</th>
-              <th className="pb-3 font-semibold">Record</th>
+            <tr className="border-b border-border-muted">
+              <th scope="col" className={headCell}>Date</th>
+              <th scope="col" className={headCell}>Opponent</th>
+              <th scope="col" className={headCell}>Result</th>
+              <th scope="col" className={headCell}>Score</th>
+              <th scope="col" className={headCell}>Mode</th>
+              <th scope="col" className={headCell}>W/L vs Opponent</th>
             </tr>
           </thead>
-          <tbody className="text-sm">
-            {games.map((game, index) => (
-              <tr
-                key={game.id}
-                className={cn(
-                  "border-t border-border-muted transition-colors hover:bg-card/50",
-                  index % 2 === 0 && "bg-background-secondary/30"
-                )}
-              >
-                <td className="py-3 text-foreground">{game.date}</td>
-                <td className="py-3 text-foreground font-medium">{game.opponent}</td>
-                <td className="py-3">
-                  <span
-                    className={cn(
-                      "px-2 py-1 rounded-full text-xs font-semibold uppercase",
-                      game.result === 'win'
-                        ? "bg-success/20 text-success"
-                        : "bg-destructive/20 text-destructive"
-                    )}
-                  >
-                    {game.result}
-                  </span>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-3 py-8 text-center text-sm text-foreground-secondary">
+                  No games recorded yet
                 </td>
-                <td className="py-3 text-foreground">
-                  {game.yourScore} - {game.opponentScore}
-                </td>
-                <td className="py-3 text-foreground-secondary">{game.gameMode}</td>
-                <td className="py-3 text-foreground-secondary">{game.record}</td>
               </tr>
-            ))}
+            ) : (
+              rows.map((game) => {
+                const total = game.recordWins + game.recordLosses;
+                const rate = total > 0 ? (game.recordWins / total) * 100 : 0;
+                const isWin = game.result === 'win';
+
+                return (
+                  <tr
+                    key={game.id}
+                    className="border-b border-border-muted/60 transition-colors last:border-b-0 odd:bg-white/[0.025] hover:bg-primary/[0.06]"
+                  >
+                    <td className={cn(cell, 'text-foreground')}>{formatDate(game.date)}</td>
+                    <td className={cn(cell, 'font-medium text-primary')}>{game.opponent}</td>
+                    <td className={cn(cell, 'font-bold', isWin ? 'text-success' : 'text-destructive')}>
+                      <span aria-hidden="true">{isWin ? 'W' : 'L'}</span>
+                      <span className="sr-only">{isWin ? 'Win' : 'Loss'}</span>
+                    </td>
+                    <td className={cn(cell, 'text-foreground')}>
+                      {game.yourScore} - {game.opponentScore}
+                    </td>
+                    <td className={cn(cell, 'text-foreground-secondary')}>{game.mode}</td>
+                    <td className={cn(cell, 'text-foreground')}>
+                      {game.recordWins} - {game.recordLosses}
+                      <span className="ml-2 text-foreground-secondary">({formatPercent(rate)})</span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
-    </div>
+    </Card>
   );
 }
