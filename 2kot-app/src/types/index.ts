@@ -6,7 +6,7 @@ export interface Opponent {
   wins: number;
   losses: number;
   win_rate: number;
-  last_played: string;
+  last_played: string | null;
   created_at: string;
 }
 

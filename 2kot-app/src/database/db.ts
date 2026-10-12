@@ -38,7 +38,7 @@ export function createOpponent(name: string, gamertag?: string): Opponent {
     VALUES (?, ?, 0, 0, 0, 0, NULL)
   `);
   const result = stmt.run(name, gamertag);
-  return getOpponentById(result.lastInsertRowid as number);
+  return getOpponentById(result.lastInsertRowid as number)!;
 }
 
 export function getOpponentById(id: number): Opponent | null {
@@ -116,7 +116,7 @@ export function createGame(
   // Update opponent stats
   updateOpponentStats(opponentId);
 
-  return getGameById(result.lastInsertRowid as number);
+  return getGameById(result.lastInsertRowid as number)!;
 }
 
 export function getGameById(id: number): Game | null {
