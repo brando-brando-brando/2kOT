@@ -1,7 +1,9 @@
 export interface Opponent {
   id: number;
   name: string;
-  gamertag?: string;
+  gamertag?: string | null;
+  overall?: number | null;
+  build?: string | null;
   total_games: number;
   wins: number;
   losses: number;
@@ -18,8 +20,10 @@ export interface Game {
   outcome: 'win' | 'loss';
   game_type: string;
   date: string;
-  start_frame_path?: string;
-  end_frame_path?: string;
+  source?: 'manual' | 'capture';
+  /** URL of the captured frame, when one exists */
+  start_frame_path?: string | null;
+  end_frame_path?: string | null;
 }
 
 export interface Statistics {

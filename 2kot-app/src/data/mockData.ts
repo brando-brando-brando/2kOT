@@ -1,6 +1,6 @@
 // SAMPLE DATA ONLY. Shown on the dashboard (with a visible "Sample data" badge)
-// while nothing has been tracked yet. None of this comes from capture, OCR or
-// the database; replace it by mapping real data in `dashboardData.ts`.
+// while the server has no opponents or games yet. None of this comes from
+// capture, OCR or the database.
 
 import type { DashboardData, OpponentSummary } from '../types/dashboard';
 

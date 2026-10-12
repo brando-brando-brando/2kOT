@@ -1,3 +1,4 @@
+import { Trash2 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import type { GameHistoryRow } from '../types/dashboard';
 import { formatDate, formatPercent } from '../utils/format';
@@ -8,14 +9,23 @@ interface GameHistoryTableProps {
   /** Maximum rows to show; all rows when omitted */
   limit?: number;
   onViewAll?: () => void;
+  /** Adds a delete action per row when provided */
+  onDeleteGame?: (id: number) => void;
   className?: string;
 }
 
 const headCell = 'px-3 py-2 text-left text-xs font-medium text-foreground-secondary';
 const cell = 'px-3 py-2 whitespace-nowrap';
 
-export function GameHistoryTable({ games, limit, onViewAll, className }: GameHistoryTableProps) {
+export function GameHistoryTable({
+  games,
+  limit,
+  onViewAll,
+  onDeleteGame,
+  className,
+}: GameHistoryTableProps) {
   const rows = limit ? games.slice(0, limit) : games;
+  const columns = onDeleteGame ? 7 : 6;
 
   return (
     <Card label="Game history" className={className}>
@@ -34,12 +44,17 @@ export function GameHistoryTable({ games, limit, onViewAll, className }: GameHis
               <th scope="col" className={headCell}>Score</th>
               <th scope="col" className={headCell}>Mode</th>
               <th scope="col" className={headCell}>W/L vs Opponent</th>
+              {onDeleteGame && (
+                <th scope="col" className={headCell}>
+                  <span className="sr-only">Actions</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-sm text-foreground-secondary">
+                <td colSpan={columns} className="px-3 py-8 text-center text-sm text-foreground-secondary">
                   No games recorded yet
                 </td>
               </tr>
@@ -68,6 +83,19 @@ export function GameHistoryTable({ games, limit, onViewAll, className }: GameHis
                       {game.recordWins} - {game.recordLosses}
                       <span className="ml-2 text-foreground-secondary">({formatPercent(rate)})</span>
                     </td>
+                    {onDeleteGame && (
+                      <td className="px-2 py-1 text-right">
+                        <button
+                          type="button"
+                          onClick={() => onDeleteGame(game.id)}
+                          aria-label={`Delete game against ${game.opponent} on ${formatDate(game.date)}`}
+                          title="Delete game"
+                          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })

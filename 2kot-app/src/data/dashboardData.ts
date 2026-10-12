@@ -1,11 +1,12 @@
-// Maps the app's existing data (opponents, games, statistics) to the
-// dashboard view models. This is the single seam where real capture data
-// will be connected later.
+// Maps what the server returns (opponents, games, statistics, live session)
+// to the dashboard view models.
 
 import type { Game, Opponent, Statistics } from '../types';
 import type {
+  CurrentGame,
   DashboardData,
   GameHistoryRow,
+  LiveState,
   OpponentSummary,
   OverallStats,
 } from '../types/dashboard';
@@ -28,7 +29,9 @@ export function toOpponentSummary(opponent: Opponent, games: Game[]): OpponentSu
   return {
     id: opponent.id,
     name: opponent.name,
-    gamertag: opponent.gamertag,
+    gamertag: opponent.gamertag ?? undefined,
+    overall: opponent.overall ?? undefined,
+    build: opponent.build ?? undefined,
     wins: opponent.wins,
     losses: opponent.losses,
     winRate: opponent.win_rate,
@@ -67,10 +70,32 @@ export function toHistoryRows(games: Game[], opponents: Opponent[]): GameHistory
   });
 }
 
+const liveStatus = { matchup: 'upcoming', in_progress: 'live', ended: 'ended' } as const;
+
+export function toCurrentGame(live: LiveState | null): CurrentGame | null {
+  const session = live?.session;
+  if (!session || session.phase === 'idle' || !session.opponent_name) return null;
+
+  return {
+    status: liveStatus[session.phase],
+    opponent: {
+      name: session.opponent_name,
+      overall: session.opponent_overall ?? undefined,
+      build: session.opponent_build ?? undefined,
+    },
+    quarter: session.quarter ?? undefined,
+    clock: session.clock ?? undefined,
+    frame: session.start_frame_url
+      ? { imageUrl: session.start_frame_url, label: 'Matchup Screen' }
+      : undefined,
+  };
+}
+
 export function buildDashboardData(
   opponents: Opponent[],
   games: Game[],
   stats: Statistics,
+  live: LiveState | null = null,
 ): DashboardData {
   // Nothing tracked yet: show the labelled sample dashboard instead of a wall
   // of empty cards.
@@ -86,14 +111,19 @@ export function buildDashboardData(
 
   return {
     isSample: false,
-    // No live game source exists yet; this is filled in once capture is wired up.
-    currentGame: null,
+    // Stays null until screen reading feeds the server's session tracker.
+    currentGame: toCurrentGame(live),
     focusOpponent: focus ? toOpponentSummary(focus, games) : null,
     liveMatchup:
       latestGame && latestOpponent
         ? {
-            opponent: { name: latestOpponent.name, gamertag: latestOpponent.gamertag },
-            frame: { imageUrl: latestGame.start_frame_path, label: 'Matchup Screen' },
+            opponent: {
+              name: latestOpponent.name,
+              gamertag: latestOpponent.gamertag ?? undefined,
+              overall: latestOpponent.overall ?? undefined,
+              build: latestOpponent.build ?? undefined,
+            },
+            frame: { imageUrl: latestGame.start_frame_path ?? undefined, label: 'Matchup Screen' },
           }
         : null,
     endGame: latestGame
@@ -101,7 +131,7 @@ export function buildDashboardData(
           outcome: latestGame.outcome,
           yourScore: latestGame.your_score,
           opponentScore: latestGame.opponent_score,
-          frame: { imageUrl: latestGame.end_frame_path, label: 'End Game Screen' },
+          frame: { imageUrl: latestGame.end_frame_path ?? undefined, label: 'End Game Screen' },
         }
       : null,
     history: toHistoryRows(games, opponents),

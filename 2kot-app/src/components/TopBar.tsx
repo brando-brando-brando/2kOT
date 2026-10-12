@@ -1,4 +1,4 @@
-import { FlaskConical, Settings } from 'lucide-react';
+import { FlaskConical, Plus, Settings } from 'lucide-react';
 import type { CaptureState } from '../types/dashboard';
 import { BrandMark } from './ui/BrandMark';
 import { StatusIndicator } from './ui/StatusIndicator';
@@ -10,9 +10,18 @@ interface TopBarProps {
   /** Shows a badge making clear the dashboard is filled with sample data */
   showSampleBadge?: boolean;
   onOpenSettings?: () => void;
+  /** Shows the Log Game action when provided */
+  onLogGame?: () => void;
 }
 
-export function TopBar({ title, subtitle, captureState, showSampleBadge, onOpenSettings }: TopBarProps) {
+export function TopBar({
+  title,
+  subtitle,
+  captureState,
+  showSampleBadge,
+  onOpenSettings,
+  onLogGame,
+}: TopBarProps) {
   const isCapturing = captureState === 'recording' || captureState === 'processing';
 
   return (
@@ -20,13 +29,13 @@ export function TopBar({ title, subtitle, captureState, showSampleBadge, onOpenS
       <div className="flex min-w-0 items-center gap-3">
         {/* The sidebar hides its wordmark when collapsed, so it moves up here */}
         <BrandMark className="shrink-0 border-r border-border-muted pr-3 lg:hidden" />
-        <h1 className="truncate text-base font-semibold text-foreground">{title}</h1>
+        <h1 className="shrink-0 text-base font-semibold text-foreground">{title}</h1>
         {subtitle && (
-          <p className="hidden truncate text-xs text-foreground-secondary md:block">{subtitle}</p>
+          <p className="hidden truncate text-xs text-foreground-secondary xl:block">{subtitle}</p>
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-4">
+      <div className="flex shrink-0 items-center gap-3 lg:gap-4">
         {showSampleBadge && (
           <span
             title="Nothing has been tracked yet, so the dashboard is showing sample data"
@@ -43,6 +52,16 @@ export function TopBar({ title, subtitle, captureState, showSampleBadge, onOpenS
           />
           <StatusIndicator state={isCapturing ? captureState : 'idle'} />
         </div>
+        {onLogGame && (
+          <button
+            type="button"
+            onClick={onLogGame}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+          >
+            <Plus className="size-3.5" aria-hidden="true" />
+            Log Game
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpenSettings}

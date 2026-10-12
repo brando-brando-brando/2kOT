@@ -1,0 +1,47 @@
+"""Recording results: resolve who the opponent is, then store the game."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from .db import Store
+from .matching import DEFAULT_THRESHOLD, find_best_match
+from .session import CompletedGame
+
+
+def resolve_opponent(
+    store: Store,
+    name: str,
+    overall: int | None = None,
+    build: str | None = None,
+    threshold: float = DEFAULT_THRESHOLD,
+) -> dict[str, Any]:
+    """Find the opponent this name refers to, creating one when none is close."""
+    match = find_best_match(name, store.list_opponents(), threshold)
+    if match is None:
+        return store.create_opponent(name, overall=overall, build=build)
+
+    opponent = dict(match.opponent)
+    # Ratings and builds change between games; keep the latest seen.
+    updates = {k: v for k, v in (("overall", overall), ("build", build)) if v is not None}
+    if updates:
+        opponent = store.update_opponent(opponent["id"], updates) or opponent
+    return opponent
+
+
+def record_completed_game(
+    store: Store, game: CompletedGame, game_type: str = "Rec"
+) -> dict[str, Any]:
+    """Store a game the session tracker saw finish."""
+    opponent = resolve_opponent(
+        store, game.opponent_name, game.opponent_overall, game.opponent_build
+    )
+    return store.create_game(
+        opponent_id=opponent["id"],
+        your_score=game.your_score,
+        opponent_score=game.opponent_score,
+        game_type=game_type,
+        source="capture",
+        start_frame_id=game.start_frame_id,
+        end_frame_id=game.end_frame_id,
+    )

@@ -101,3 +101,18 @@ export interface DashboardData {
   recentOpponents: OpponentSummary[];
   nextMatchup: MatchupCapture | null;
 }
+
+/** Live state reported by the server's session tracker (GET /api/live). */
+export interface LiveState {
+  capture_state: CaptureState;
+  last_frame_at: string | null;
+  session: {
+    phase: 'idle' | 'matchup' | 'in_progress' | 'ended';
+    opponent_name: string | null;
+    opponent_overall: number | null;
+    opponent_build: string | null;
+    quarter: number | null;
+    clock: string | null;
+    start_frame_url: string | null;
+  };
+}
