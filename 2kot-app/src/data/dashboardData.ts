@@ -70,7 +70,7 @@ export function toHistoryRows(games: Game[], opponents: Opponent[]): GameHistory
   });
 }
 
-const liveStatus = { matchup: 'upcoming', in_progress: 'live', ended: 'ended' } as const;
+const liveStatus = { pregame: 'upcoming', in_progress: 'live', ended: 'ended' } as const;
 
 export function toCurrentGame(live: LiveState | null): CurrentGame | null {
   const session = live?.session;
@@ -83,8 +83,11 @@ export function toCurrentGame(live: LiveState | null): CurrentGame | null {
       overall: session.opponent_overall ?? undefined,
       build: session.opponent_build ?? undefined,
     },
+    yourLabel: session.your_name ?? undefined,
     quarter: session.quarter ?? undefined,
     clock: session.clock ?? undefined,
+    yourScore: session.your_score ?? undefined,
+    opponentScore: session.opponent_score ?? undefined,
     frame: session.start_frame_url
       ? { imageUrl: session.start_frame_url, label: 'Matchup Screen' }
       : undefined,

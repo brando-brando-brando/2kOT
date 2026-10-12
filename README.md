@@ -39,23 +39,57 @@ cd 2kot-app && npm run build && npm run lint
 
 All under `/api`: `GET/POST /opponents`, `GET/PATCH/DELETE /opponents/{id}`,
 `GET /games`, `POST /game_result`, `DELETE /games/{id}`, `GET /stats`,
-`GET /stats/{opponent_id}`, `POST /frames`, `GET /frames/{id}/image`,
+`GET /stats/{opponent_id}`, `POST /frames`, `POST /frames/analyze`,
+`GET /frames/{id}/image`,
 `GET /live`. Interactive docs are at http://127.0.0.1:8787/docs while the
 server runs.
 
-## Where screen reading stands
+## Screen reading
 
-Everything around screen reading is built and tested: storage, opponent name
-matching that tolerates OCR look-alike errors, the game session tracker, OCR
-text parsing and image preparation. Two pieces wait on real captured frames,
-in `2kot-server/src/twokot/vision/pipeline.py`:
+The server recognises these screens and reads the values on them. It is
+calibrated on one recorded 1v1 Theater game (`2kot-frame-capture/samples`).
 
-1. `classify_screen`: recognising matchup, in-game and end-game screens.
-2. `REGIONS`: where the name, rating and score sit on each screen.
+| Screen | Label | What is read |
+| --- | --- | --- |
+| "YOU" player card | `my_player_load_screen` | your name, rating |
+| "OPPONENT" player card | `opponent_player_load_screen` | opponent name, rating |
+| Player Matchup | `player_matchup` | both names, ratings, positions, builds; one frame is kept for the dashboard |
+| Gameplay (scoreboard visible) | `in_game` | live score |
+| YOU WON / YOU LOST | `game_result` | outcome and final score |
+| Winners Circle | `winners_circle` | nothing (marks the end sequence) |
+| Game Stats table | `final_game_stats` | points per side, plus the other columns where legible |
 
-An OCR engine also still has to be chosen and tested against those frames.
-To load labelled samples exported from the capture tool:
+Everything else is `other`. Each value is read on many frames and the most
+common reading wins; a result is recorded once the result screen and the stats
+table agree, or when the end sequence finishes.
+
+Text positions live in `2kot-server/src/twokot/vision/screens.py`; the game
+flow is in `session.py`. OCR is RapidOCR, running locally.
+
+### Live tracking
+
+With the server running, start the capture tool, choose **Live tracking** and
+press Start Tracking. Frames go to `POST /api/frames/analyze`; the dashboard
+follows along.
 
 ```bash
-cd 2kot-server && uv run python -m twokot.dataset import ~/Downloads/2kot-frames-*.json
+cd 2kot-frame-capture && npm run dev
 ```
+
+### Replaying a recording
+
+Run a capture-tool export through the same pipeline. `--dry-run` shows what
+would be recorded without touching the database.
+
+```bash
+cd 2kot-server && uv run python -m twokot.replay --dry-run ../2kot-frame-capture/samples/raw/<export>.json
+```
+
+### Known limits
+
+- Capture below 720p (the first samples were 640x480) is too small for the
+  card level, and makes card ratings and the stats table unreliable. The
+  capture tool now asks the device for 1920x1080.
+- Calibrated on a single game and mode. Other modes may place things
+  differently and will need their own samples.
+- Game mode is taken from the matchup screen's subtitle.

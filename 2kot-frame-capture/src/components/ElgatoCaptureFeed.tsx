@@ -50,7 +50,13 @@ export function ElgatoCaptureFeed({ onFrameReady }: ElgatoCaptureFeedProps) {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: preferredDeviceId ? { deviceId: { exact: preferredDeviceId } } : true,
+        // Without an explicit size browsers open capture devices at 640x480,
+        // which is too small to read on-screen text reliably.
+        video: {
+          ...(preferredDeviceId ? { deviceId: { exact: preferredDeviceId } } : {}),
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
         audio: false,
       });
       if (videoRef.current) {

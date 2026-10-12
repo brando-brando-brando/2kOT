@@ -6,6 +6,7 @@ games table on read, so they can never drift out of sync with it.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -58,7 +59,7 @@ FROM opponents o
 LEFT JOIN games g ON g.opponent_id = o.id
 """
 
-FRAME_KINDS = ("matchup", "end_game", "in_game", "other")
+FRAME_KINDS = ("matchup", "player_matchup", "end_game", "in_game", "other")
 
 
 def now_iso() -> str:
@@ -70,6 +71,9 @@ def connect(db_path: Path | str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    # Databases created before the stats table was read lack this column.
+    if "stats" not in {row["name"] for row in conn.execute("PRAGMA table_info(games)")}:
+        conn.execute("ALTER TABLE games ADD COLUMN stats TEXT")
     return conn
 
 
@@ -104,6 +108,7 @@ def _game(row: sqlite3.Row) -> dict[str, Any]:
         "game_type": row["game_type"],
         "date": row["date"],
         "source": row["source"],
+        "stats": json.loads(row["stats"]) if row["stats"] else None,
         "start_frame_path": _frame_url(row["start_frame_id"]),
         "end_frame_path": _frame_url(row["end_frame_id"]),
     }
@@ -189,6 +194,7 @@ class Store:
         source: str = "manual",
         start_frame_id: int | None = None,
         end_frame_id: int | None = None,
+        stats: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if your_score == opponent_score:
             raise ValueError("A game cannot end in a tie")
@@ -196,7 +202,8 @@ class Store:
         with self.conn:
             cur = self.conn.execute(
                 "INSERT INTO games (opponent_id, your_score, opponent_score, outcome, game_type,"
-                " date, source, start_frame_id, end_frame_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " date, source, start_frame_id, end_frame_id, stats)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     opponent_id,
                     your_score,
@@ -207,6 +214,7 @@ class Store:
                     source,
                     start_frame_id,
                     end_frame_id,
+                    json.dumps(stats) if stats else None,
                 ),
             )
         game = self.get_game(cur.lastrowid)

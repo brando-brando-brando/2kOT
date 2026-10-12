@@ -37,6 +37,9 @@ export interface CurrentGame {
   yourLabel?: string;
   quarter?: number;
   clock?: string;
+  /** Live score, when the scoreboard can be read and sides told apart */
+  yourScore?: number;
+  opponentScore?: number;
   frame?: CapturedFrame;
 }
 
@@ -107,10 +110,15 @@ export interface LiveState {
   capture_state: CaptureState;
   last_frame_at: string | null;
   session: {
-    phase: 'idle' | 'matchup' | 'in_progress' | 'ended';
+    phase: 'idle' | 'pregame' | 'in_progress' | 'ended';
     opponent_name: string | null;
     opponent_overall: number | null;
     opponent_build: string | null;
+    opponent_level: number | null;
+    your_name: string | null;
+    your_score: number | null;
+    opponent_score: number | null;
+    mode: string | null;
     quarter: number | null;
     clock: string | null;
     start_frame_url: string | null;

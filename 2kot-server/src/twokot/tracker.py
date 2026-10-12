@@ -30,18 +30,25 @@ def resolve_opponent(
 
 
 def record_completed_game(
-    store: Store, game: CompletedGame, game_type: str = "Rec"
+    store: Store, game: CompletedGame, date: str | None = None
 ) -> dict[str, Any]:
     """Store a game the session tracker saw finish."""
     opponent = resolve_opponent(
         store, game.opponent_name, game.opponent_overall, game.opponent_build
     )
+    if date:
+        # Replaying the same recording twice must not record its game twice.
+        for existing in store.list_games(opponent["id"]):
+            if existing["source"] == "capture" and existing["date"] == date:
+                return existing
     return store.create_game(
         opponent_id=opponent["id"],
         your_score=game.your_score,
         opponent_score=game.opponent_score,
-        game_type=game_type,
+        game_type=game.game_type or "Unknown",
+        date=date,
         source="capture",
         start_frame_id=game.start_frame_id,
         end_frame_id=game.end_frame_id,
+        stats=game.stats,
     )

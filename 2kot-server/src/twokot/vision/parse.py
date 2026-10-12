@@ -10,11 +10,11 @@ from __future__ import annotations
 import re
 
 # Digits OCR tends to return as letters inside numeric fields.
-_DIGIT_FIXES = str.maketrans({"O": "0", "o": "0", "I": "1", "l": "1", "S": "5", "B": "8"})
+DIGIT_FIXES = str.maketrans({"O": "0", "o": "0", "I": "1", "l": "1", "S": "5", "B": "8"})
 
 
 def _digits(text: str) -> str:
-    return text.translate(_DIGIT_FIXES)
+    return text.translate(DIGIT_FIXES)
 
 
 def parse_overall(text: str) -> int | None:

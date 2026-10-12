@@ -18,6 +18,12 @@ export function ContinuousCapture({ videoElement, onRecordingComplete }: Continu
   const [isRecording, setIsRecording] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [sampleRate, setSampleRate] = useState(2); // fps
+  // "samples" keeps frames for tagging; "live" sends them to the tracker instead.
+  const [mode, setMode] = useState<"samples" | "live">("samples");
+  const [liveStatus, setLiveStatus] = useState("");
+  const [frameCount, setFrameCount] = useState(0);
+  const modeRef = useRef<"samples" | "live">("samples");
+  const sendingRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const framesRef = useRef<CapturedFrame[]>([]);
   const recordingStartTimeRef = useRef<number | null>(null);
@@ -35,6 +41,41 @@ export function ContinuousCapture({ videoElement, onRecordingComplete }: Continu
     sampleRateRef.current = sampleRate;
   }, [sampleRate]);
 
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
+  const sendToTracker = useCallback((canvas: HTMLCanvasElement, capturedAt: Date) => {
+    // The tracker reads one frame at a time; skip frames while it is busy
+    // rather than letting a backlog build up.
+    if (sendingRef.current) return;
+    sendingRef.current = true;
+    canvas.toBlob(
+      async (blob) => {
+        try {
+          if (!blob) return;
+          const body = new FormData();
+          body.append("file", blob, "frame.jpg");
+          body.append("captured_at", capturedAt.toISOString());
+          const response = await fetch("/api/frames/analyze", { method: "POST", body });
+          if (!response.ok) throw new Error(`Tracker answered ${response.status}`);
+          const result = await response.json();
+          setLiveStatus(
+            result.game
+              ? `Game recorded: ${result.game.your_score} - ${result.game.opponent_score}`
+              : `Screen: ${result.kind} · session: ${result.session.phase}`
+          );
+        } catch {
+          setLiveStatus("Tracker not reachable. Is 2kot-server running?");
+        } finally {
+          sendingRef.current = false;
+        }
+      },
+      "image/jpeg",
+      0.9
+    );
+  }, []);
+
   const captureFrame = useCallback(() => {
     if (!videoElement || !canvasRef.current || !recordingStartTimeRef.current) return;
 
@@ -46,8 +87,14 @@ export function ContinuousCapture({ videoElement, onRecordingComplete }: Continu
     canvas.height = videoElement.videoHeight;
     ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.85); // JPEG for smaller size
     const now = Date.now();
+    setFrameCount((count) => count + 1);
+    if (modeRef.current === "live") {
+      sendToTracker(canvas, new Date(now));
+      return;
+    }
+
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85); // JPEG for smaller size
     const relativeTimeMs = now - recordingStartTimeRef.current!;
 
     const frame: CapturedFrame = {
@@ -60,7 +107,7 @@ export function ContinuousCapture({ videoElement, onRecordingComplete }: Continu
     };
 
     framesRef.current.push(frame);
-  }, [videoElement]);
+  }, [videoElement, sendToTracker]);
 
   const processFrame = useCallback(() => {
     if (!isRecordingRef.current) return;
@@ -86,6 +133,8 @@ export function ContinuousCapture({ videoElement, onRecordingComplete }: Continu
     setIsRecording(true);
     isRecordingRef.current = true;
     setElapsedTime(0);
+    setFrameCount(0);
+    setLiveStatus("");
 
     // Capture first frame immediately
     captureFrame();
@@ -106,7 +155,10 @@ export function ContinuousCapture({ videoElement, onRecordingComplete }: Continu
     framesRef.current = [];
     recordingStartTimeRef.current = null;
 
-    onRecordingComplete(frames);
+    // Live tracking keeps no frames, so there is nothing to tag afterwards.
+    if (modeRef.current === "samples") {
+      onRecordingComplete(frames);
+    }
   };
 
   // Cleanup on unmount
@@ -149,6 +201,21 @@ export function ContinuousCapture({ videoElement, onRecordingComplete }: Continu
           </label>
         </div>
 
+        <div className="continuous-capture-settings">
+          <label className="continuous-capture-label">
+            Mode:
+            <select
+              className="continuous-capture-select"
+              value={mode}
+              onChange={(e) => setMode(e.target.value as "samples" | "live")}
+              disabled={isRecording}
+            >
+              <option value="samples">Collect samples (tag and export)</option>
+              <option value="live">Live tracking (send to dashboard)</option>
+            </select>
+          </label>
+        </div>
+
         <div className="continuous-capture-buttons">
           {!isRecording ? (
             <button
@@ -156,14 +223,14 @@ export function ContinuousCapture({ videoElement, onRecordingComplete }: Continu
               onClick={startRecording}
               disabled={!videoElement}
             >
-              Start Recording
+              {mode === "live" ? "Start Tracking" : "Start Recording"}
             </button>
           ) : (
             <button
               className="continuous-capture-stop"
               onClick={stopRecording}
             >
-              Stop Recording
+              {mode === "live" ? "Stop Tracking" : "Stop Recording"}
             </button>
           )}
         </div>
@@ -174,15 +241,30 @@ export function ContinuousCapture({ videoElement, onRecordingComplete }: Continu
               {formatTime(elapsedTime)}
             </span>
             <span className="continuous-capture-frames">
-              {framesRef.current.length} frames captured
+              {frameCount} frames {mode === "live" ? "seen" : "captured"}
             </span>
+            {mode === "live" && liveStatus && (
+              <span className="continuous-capture-frames">{liveStatus}</span>
+            )}
           </div>
         )}
       </div>
 
       <div className="continuous-capture-info">
-        <p>ℹ️ Recording at {sampleRate} fps. Captures game state changes for OCR training.</p>
-        <p>After stopping, you'll tag and select frames to export.</p>
+        {videoElement && (
+          <p>
+            Capture size: {videoElement.videoWidth} x {videoElement.videoHeight}
+            {videoElement.videoHeight < 720 && " (low: text may not read reliably)"}
+          </p>
+        )}
+        {mode === "live" ? (
+          <p>Frames go straight to the tracker and are not kept here. Needs 2kot-server running.</p>
+        ) : (
+          <>
+            <p>ℹ️ Recording at {sampleRate} fps. Captures game state changes for OCR training.</p>
+            <p>After stopping, you'll tag and select frames to export.</p>
+          </>
+        )}
       </div>
     </div>
   );

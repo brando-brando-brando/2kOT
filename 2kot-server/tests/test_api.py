@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import cv2
 import numpy as np
 
@@ -126,15 +128,70 @@ def test_frame_upload_and_serving(client):
 
 def test_captured_game_resolves_a_misread_name_to_the_known_opponent(store):
     known = store.create_opponent("ItsMeJayy", overall=92)
+    when = "2026-10-12T22:20:00+00:00"
     game = record_completed_game(
         store,
         CompletedGame(
-            opponent_name="ltsMeJayy", your_score=21, opponent_score=14, opponent_overall=93
+            opponent_name="ltsMeJayy",
+            your_score=21,
+            opponent_score=14,
+            opponent_overall=93,
+            game_type="Theater",
+            stats={"you": {"PTS": 21}},
         ),
+        date=when,
     )
     assert game["opponent_id"] == known["id"] and game["source"] == "capture"
+    assert (game["game_type"], game["stats"]) == ("Theater", {"you": {"PTS": 21}})
     assert len(store.list_opponents()) == 1
     assert store.get_opponent(known["id"])["overall"] == 93
 
     record_completed_game(store, CompletedGame("BrandNewGuy", 10, 21))
     assert len(store.list_opponents()) == 2
+
+    # The same captured game arriving again (a replayed recording) is not duplicated.
+    again = record_completed_game(store, CompletedGame("ItsMeJayy", 21, 14), date=when)
+    assert again["id"] == game["id"] and len(store.list_games()) == 2
+
+
+def test_analysing_frames_drives_the_live_session(client):
+    frames = Path(__file__).parent / "fixtures" / "frames"
+
+    recorded = []
+
+    def send(name, times=1):
+        data = (frames / f"{name}.jpg").read_bytes()
+        for _ in range(times):
+            response = client.post(
+                "/api/frames/analyze", files={"file": (f"{name}.jpg", data, "image/jpeg")}
+            )
+            assert response.status_code == 200
+            if response.json()["game"]:
+                recorded.append(response.json()["game"])
+        return response.json()
+
+    assert send("0052", times=3)["kind"] == "opponent_player_load_screen"
+    assert send("0066", times=3)["session"]["phase"] == "pregame"
+
+    live = client.get("/api/live").json()
+    assert live["capture_state"] == "connected"
+    assert live["session"]["opponent_name"] == "DntDaggMe"
+    assert live["session"]["opponent_overall"] == 99
+    # The matchup frame is kept and served for the dashboard to show.
+    assert client.get(live["session"]["start_frame_url"]).status_code == 200
+
+    assert send("0300", times=3)["session"]["phase"] == "in_progress"
+    send("0708", times=3)
+    send("0759", times=3)
+    assert len(recorded) == 1, "the game is recorded once, when result and stats agree"
+    assert recorded[0]["outcome"] == "loss"
+    assert (recorded[0]["your_score"], recorded[0]["opponent_score"]) == (18, 22)
+
+    games = client.get("/api/games").json()
+    assert len(games) == 1 and games[0]["source"] == "capture"
+    assert client.get(games[0]["start_frame_path"]).status_code == 200
+    opponent = client.get("/api/opponents").json()[0]
+    assert (opponent["name"], opponent["overall"], opponent["losses"]) == ("DntDaggMe", 99, 1)
+
+    bad = client.post("/api/frames/analyze", files={"file": ("x.jpg", b"nope", "image/jpeg")})
+    assert bad.status_code == 422

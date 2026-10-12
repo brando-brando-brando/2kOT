@@ -9,6 +9,8 @@ dependencies = [
     "python-multipart>=0.0.9",
     "numpy>=1.26",
     "opencv-python-headless>=4.9",
+    "rapidocr-onnxruntime>=1.4.4",
+    "onnxruntime<1.24",
 ]
 
 [dependency-groups]

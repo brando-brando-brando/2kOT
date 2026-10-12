@@ -1,6 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { type CapturedFrame } from "./ContinuousCapture";
-import { format } from "date-fns";
 
 export interface FrameTaggerProps {
   frames: CapturedFrame[];

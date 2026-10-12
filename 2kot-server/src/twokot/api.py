@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, model_validator
 
 from .config import Settings, load_settings
 from .db import FRAME_KINDS, Store, connect
-from .session import SessionTracker
+from .live import FrameProcessor
 from .tracker import resolve_opponent
 from .vision.preprocess import decode_image
 
@@ -61,11 +63,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
     settings.ensure_dirs()
     store = Store(connect(settings.db_path))
-    tracker = SessionTracker()
+    processor = FrameProcessor(store, settings.frames_dir)
+    # Frames must be analysed one at a time and in order.
+    analysis_lock = asyncio.Lock()
+    last_analysis: dict[str, datetime | None] = {"at": None}
 
     app = FastAPI(title="2KOT server", version="0.1.0")
     app.state.store = store
-    app.state.tracker = tracker
+    app.state.processor = processor
     # The dashboard and capture tool run on other localhost ports during development.
     app.add_middleware(
         CORSMiddleware,
@@ -182,6 +187,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         frame.pop("path")
         return frame
 
+    @api.post("/frames/analyze")
+    async def analyze_frame_upload(
+        file: UploadFile = File(...), captured_at: str | None = Form(None)
+    ) -> dict[str, Any]:
+        """Read one captured frame and advance the live game session. Only
+        frames the tracker uses (the matchup and the result) are stored."""
+        data = await file.read(MAX_FRAME_BYTES + 1)
+        if len(data) > MAX_FRAME_BYTES:
+            raise HTTPException(413, "Frame is too large")
+        async with analysis_lock:
+            try:
+                # Screen reading is CPU-bound; keep it off the event loop.
+                observation = await run_in_threadpool(processor.analyze, data)
+            except ValueError:
+                raise HTTPException(422, "File is not a readable image") from None
+            game = processor.apply(data, observation, captured_at)
+            last_analysis["at"] = datetime.now(UTC)
+        return {"kind": observation.kind.value, "session": processor.state(), "game": game}
+
     @api.get("/frames/{frame_id}/image")
     async def frame_image(frame_id: int) -> FileResponse:
         frame = store.get_frame(frame_id)
@@ -194,22 +218,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @api.get("/live")
     async def live() -> dict[str, Any]:
-        latest = store.latest_frame_time()
-        active = False
-        if latest:
+        # A capture source counts as connected only while its frames arrive.
+        seen = last_analysis["at"]
+        stored = store.latest_frame_time()
+        if stored:
             try:
-                seen = datetime.fromisoformat(latest)
-                if seen.tzinfo is None:
-                    seen = seen.replace(tzinfo=UTC)
-                age = (datetime.now(UTC) - seen).total_seconds()
-                active = age <= CAPTURE_ACTIVE_SECONDS
+                stored_at = datetime.fromisoformat(stored)
+                if stored_at.tzinfo is None:
+                    stored_at = stored_at.replace(tzinfo=UTC)
+                seen = max(seen, stored_at) if seen else stored_at
             except ValueError:
-                active = False
+                pass
+        active = bool(seen) and (datetime.now(UTC) - seen).total_seconds() <= CAPTURE_ACTIVE_SECONDS
+        latest = seen.isoformat(timespec="seconds") if seen else None
         return {
-            # "connected" only while frames are actually arriving.
             "capture_state": "connected" if active else "disconnected",
             "last_frame_at": latest,
-            "session": tracker.state.as_dict(),
+            "session": processor.state(),
         }
 
     app.include_router(api)

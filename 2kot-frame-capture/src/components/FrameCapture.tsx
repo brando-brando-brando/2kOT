@@ -1,5 +1,4 @@
 import { useRef, useState } from "react";
-import { format } from "date-fns";
 
 export interface CapturedFrame {
   id: string;

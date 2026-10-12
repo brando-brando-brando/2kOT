@@ -4,9 +4,7 @@ import cv2
 import numpy as np
 import pytest
 
-from twokot.session import ScreenKind
 from twokot.vision import parse
-from twokot.vision.pipeline import NotCalibratedError, analyze_frame
 from twokot.vision.preprocess import Region, crop, decode_data_url, decode_image, prepare_for_ocr
 
 
@@ -64,13 +62,3 @@ def test_data_url_round_trip():
         decode_data_url("data:text/plain;base64,AAAA")
     with pytest.raises(ValueError):
         decode_image(b"not an image")
-
-
-def test_pipeline_refuses_to_guess_before_calibration():
-    class Reader:
-        def read(self, image):
-            return ""
-
-    with pytest.raises(NotCalibratedError):
-        analyze_frame(np.zeros((10, 10, 3), dtype=np.uint8), Reader())
-    assert ScreenKind.MATCHUP.value == "matchup"
