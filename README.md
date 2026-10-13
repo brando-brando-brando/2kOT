@@ -106,3 +106,7 @@ the in-game stats screen only; other layouts need sample photos to confirm.
 - Calibrated on two games in one mode (1v1 Theater), one loss and one win. Other modes may place things
   differently and will need their own samples.
 - Game mode is taken from the matchup screen's subtitle.
+- Capital I and lowercase L look identical in the game's font, so a gamertag
+  such as "IlTeeMoneyyll" may be stored with the wrong one of the two.
+  Matching treats them as the same letter, so rematches still find the right
+  opponent; only the displayed spelling can be off. Accepted for now.
