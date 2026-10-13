@@ -9,21 +9,51 @@ calibrated) fills that in automatically from captured gameplay.
 | `2kot-server` | Local API, SQLite storage, screen-reading pipeline | Python, FastAPI, OpenCV |
 | `2kot-frame-capture` | Tool for capturing and labelling sample frames | React, TypeScript, Vite |
 
+## Setting up a new Mac
+
+```bash
+./install.sh
+```
+
+This checks for the Xcode Command Line Tools, Node.js (20.19+ or 22.12+) and
+uv, installs whatever is missing through Homebrew (asking before it installs
+Homebrew itself), then installs the dependencies for all three folders and
+creates the data folder. It is safe to re-run. Add `--check` to also run the
+tests, lint and builds.
+
 ## Running it
 
-Start the server, then the dashboard, in two terminals:
-
 ```bash
-cd 2kot-server && uv run python -m twokot
+./2kot.sh
 ```
 
+Starts the server, the dashboard and the capture tool in one terminal and
+opens the dashboard. Keep the terminal open; Ctrl-C stops everything. Use
+`--no-capture` to leave out the capture tool, or `--no-open` to skip the
+browser.
+
+For development, open each part in its own Terminal window instead, so the
+logs stay separate and each can be restarted by itself:
+
 ```bash
-cd 2kot-app && npm run dev
+./2kot_dev.sh
 ```
 
-The dashboard proxies `/api` to the server on port 8787. Data is stored in
-`~/.2kot` (`2kot.db` plus a `frames` folder); set `TWOKOT_DATA_DIR` to use a
-different location.
+| Part | Address | Started by hand with |
+| --- | --- | --- |
+| Server | http://127.0.0.1:8787 | `cd 2kot-server && uv run python -m twokot` |
+| Dashboard | http://localhost:5183 | `cd 2kot-app && npm run dev` |
+| Capture tool | http://localhost:5184 | `cd 2kot-frame-capture && npm run dev` |
+
+Both scripts refuse to start if a port is already taken. Set
+`TWOKOT_APP_PORT` or `TWOKOT_CAPTURE_PORT` to move the dashboard or capture
+tool to another port.
+
+The dashboard and capture tool proxy `/api` to the server on port 8787. Data
+is stored in `~/.2kot` (`2kot.db` plus a `frames` folder); set
+`TWOKOT_DATA_DIR` to use a different location. The first time the capture
+tool is used, the browser asks for camera access so it can read the Elgato
+capture card.
 
 ## Checks
 
