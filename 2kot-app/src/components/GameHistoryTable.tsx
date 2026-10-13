@@ -9,6 +9,8 @@ interface GameHistoryTableProps {
   /** Maximum rows to show; all rows when omitted */
   limit?: number;
   onViewAll?: () => void;
+  /** Makes each opponent name open that game's details */
+  onSelectGame?: (id: number) => void;
   /** Adds a delete action per row when provided */
   onDeleteGame?: (id: number) => void;
   className?: string;
@@ -21,6 +23,7 @@ export function GameHistoryTable({
   games,
   limit,
   onViewAll,
+  onSelectGame,
   onDeleteGame,
   className,
 }: GameHistoryTableProps) {
@@ -70,7 +73,20 @@ export function GameHistoryTable({
                     className="border-b border-border-muted/60 transition-colors last:border-b-0 odd:bg-white/[0.025] hover:bg-primary/[0.06]"
                   >
                     <td className={cn(cell, 'text-foreground')}>{formatDate(game.date)}</td>
-                    <td className={cn(cell, 'font-medium text-primary')}>{game.opponent}</td>
+                    <td className={cn(cell, 'font-medium text-primary')}>
+                      {onSelectGame ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelectGame(game.id)}
+                          title="View game details"
+                          className="rounded hover:underline"
+                        >
+                          {game.opponent}
+                        </button>
+                      ) : (
+                        game.opponent
+                      )}
+                    </td>
                     <td className={cn(cell, 'font-bold', isWin ? 'text-success' : 'text-destructive')}>
                       <span aria-hidden="true">{isWin ? 'W' : 'L'}</span>
                       <span className="sr-only">{isWin ? 'Win' : 'Loss'}</span>

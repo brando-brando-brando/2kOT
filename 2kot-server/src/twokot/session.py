@@ -91,6 +91,7 @@ class CompletedGame:
     opponent_score: int
     opponent_overall: int | None = None
     opponent_build: str | None = None
+    opponent_level: int | None = None
     game_type: str | None = None
     stats: dict[str, Any] | None = None
     start_frame_id: int | None = None
@@ -399,6 +400,7 @@ class SessionTracker:
             opponent_score=scores[1],
             opponent_overall=game.opponent.overall.best,
             opponent_build=game.opponent.build.best,
+            opponent_level=game.opponent.level.best,
             game_type=mode,
             stats=game.stats,
             start_frame_id=game.matchup_frame_id,

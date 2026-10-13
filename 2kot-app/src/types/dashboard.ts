@@ -15,6 +15,8 @@ export interface PlayerIdentity {
   gamertag?: string;
   /** Overall rating, e.g. 93 */
   overall?: number;
+  /** Player level, e.g. 22 */
+  level?: number;
   /** Build / playstyle summary, e.g. "2-Way 3-Level Scorer" */
   build?: string;
   /** Position and measurements, e.g. "SF | 6'7\" | 215 lbs" */

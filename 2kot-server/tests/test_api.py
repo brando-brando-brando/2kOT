@@ -136,6 +136,7 @@ def test_captured_game_resolves_a_misread_name_to_the_known_opponent(store):
             your_score=21,
             opponent_score=14,
             opponent_overall=93,
+            opponent_level=5,
             game_type="Theater",
             stats={"you": {"PTS": 21}},
         ),
@@ -145,6 +146,7 @@ def test_captured_game_resolves_a_misread_name_to_the_known_opponent(store):
     assert (game["game_type"], game["stats"]) == ("Theater", {"you": {"PTS": 21}})
     assert len(store.list_opponents()) == 1
     assert store.get_opponent(known["id"])["overall"] == 93
+    assert store.get_opponent(known["id"])["level"] == 5
 
     record_completed_game(store, CompletedGame("BrandNewGuy", 10, 21))
     assert len(store.list_opponents()) == 2
@@ -195,3 +197,58 @@ def test_analysing_frames_drives_the_live_session(client):
 
     bad = client.post("/api/frames/analyze", files={"file": ("x.jpg", b"nope", "image/jpeg")})
     assert bad.status_code == 422
+
+
+def test_stats_can_be_edited_and_cleared(client):
+    game = log(client, opponent_name="DntDaggMe", your_score=18, opponent_score=22).json()
+    assert game["stats"] is None and game["stats_photo_path"] is None
+
+    stats = {"you": {"PTS": 18, "FGM/FGA": "8/13"}, "opponent": {"PTS": 22}}
+    updated = client.patch(
+        f"/api/games/{game['id']}", json={"stats": stats, "game_type": "Theater"}
+    )
+    assert updated.status_code == 200
+    assert (updated.json()["stats"], updated.json()["game_type"]) == (stats, "Theater")
+
+    # Editing one field leaves the others alone.
+    kept = client.patch(f"/api/games/{game['id']}", json={"game_type": "Park"}).json()
+    assert kept["stats"] == stats
+    assert client.patch(f"/api/games/{game['id']}", json={"stats": None}).json()["stats"] is None
+
+    assert client.patch("/api/games/999", json={"game_type": "Rec"}).status_code == 404
+    bad_column = client.patch(f"/api/games/{game['id']}", json={"stats": {"you": {"XYZ": 1}}})
+    bad_side = client.patch(f"/api/games/{game['id']}", json={"stats": {"them": {"PTS": 1}}})
+    assert (bad_column.status_code, bad_side.status_code) == (422, 422)
+
+
+def test_stats_photo_is_read_and_kept_but_not_saved_until_confirmed(client):
+    game = log(client, opponent_name="DntDaggMe", your_score=18, opponent_score=22).json()
+    photo = (Path(__file__).parent / "fixtures" / "frames" / "0759.jpg").read_bytes()
+
+    response = client.post(
+        f"/api/games/{game['id']}/stats_photo", files={"file": ("stats.jpg", photo, "image/jpeg")}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["stats"]["you"]["PTS"], body["stats"]["opponent"]["PTS"]) == (18, 22)
+    assert body["warnings"] == []
+    assert client.get(body["photo_url"]).content == photo
+
+    stored = client.get("/api/games").json()[0]
+    assert stored["stats"] is None, "read stats are a proposal until confirmed"
+    assert stored["stats_photo_path"] == body["photo_url"]
+
+    # A photo whose points disagree with the recorded score is flagged.
+    other = log(client, opponent_name="DntDaggMe", your_score=21, opponent_score=10).json()
+    mismatch = client.post(
+        f"/api/games/{other['id']}/stats_photo", files={"file": ("stats.jpg", photo, "image/jpeg")}
+    ).json()
+    assert len(mismatch["warnings"]) == 2 and "recorded score is 21" in mismatch["warnings"][0]
+
+    not_image = client.post(
+        f"/api/games/{game['id']}/stats_photo", files={"file": ("x.jpg", b"nope", "image/jpeg")}
+    )
+    missing = client.post(
+        "/api/games/999/stats_photo", files={"file": ("x.jpg", photo, "image/jpeg")}
+    )
+    assert (not_image.status_code, missing.status_code) == (422, 404)

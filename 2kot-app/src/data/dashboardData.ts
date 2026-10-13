@@ -31,6 +31,7 @@ export function toOpponentSummary(opponent: Opponent, games: Game[]): OpponentSu
     name: opponent.name,
     gamertag: opponent.gamertag ?? undefined,
     overall: opponent.overall ?? undefined,
+    level: opponent.level ?? undefined,
     build: opponent.build ?? undefined,
     wins: opponent.wins,
     losses: opponent.losses,

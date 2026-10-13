@@ -19,5 +19,10 @@
   "0724": "other",
   "0733": "final_game_stats",
   "0738": "other",
-  "0759": "final_game_stats"
+  "0759": "final_game_stats",
+  "hd_0025": "my_player_load_screen",
+  "hd_0033": "opponent_player_load_screen",
+  "hd_0045": "player_matchup",
+  "hd_0300": "in_game",
+  "hd_0611": "game_result"
 }

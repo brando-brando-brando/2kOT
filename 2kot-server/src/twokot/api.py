@@ -18,6 +18,7 @@ from .db import FRAME_KINDS, Store, connect
 from .live import FrameProcessor
 from .tracker import resolve_opponent
 from .vision.preprocess import decode_image
+from .vision.stats_table import STAT_COLUMNS, read_stats_image
 
 # Frames newer than this mean a capture source is actively sending.
 CAPTURE_ACTIVE_SECONDS = 15
@@ -35,7 +36,30 @@ class OpponentUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     gamertag: str | None = Field(default=None, max_length=80)
     overall: int | None = Field(default=None, ge=40, le=99)
+    level: int | None = Field(default=None, ge=1, le=99)
     build: str | None = Field(default=None, max_length=80)
+
+
+StatValue = int | str
+MAX_PHOTO_BYTES = 30 * 1024 * 1024
+
+
+class GameUpdate(BaseModel):
+    game_type: str | None = Field(default=None, min_length=1, max_length=40)
+    # {"you": {"PTS": 18, "FGM/FGA": "8/13"}, "opponent": {...}}; null clears it.
+    stats: dict[str, dict[str, StatValue]] | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> GameUpdate:
+        for side, row in (self.stats or {}).items():
+            if side not in ("you", "opponent"):
+                raise ValueError("stats sides must be 'you' and 'opponent'")
+            for column, value in row.items():
+                if column not in STAT_COLUMNS:
+                    raise ValueError(f"Unknown stat column: {column}")
+                if isinstance(value, str) and len(value) > 12:
+                    raise ValueError(f"{column} value is too long")
+        return self
 
 
 class GameResultCreate(BaseModel):
@@ -141,6 +165,62 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             game_type=body.game_type.strip(),
             date=body.date,
         )
+
+    @api.patch("/games/{game_id}")
+    async def update_game(game_id: int, body: GameUpdate) -> dict[str, Any]:
+        if store.get_game(game_id) is None:
+            raise HTTPException(404, "Game not found")
+        updated = store.update_game(game_id, body.model_dump(exclude_unset=True))
+        assert updated is not None
+        return updated
+
+    @api.post("/games/{game_id}/stats_photo")
+    async def read_stats_photo(game_id: int, file: UploadFile = File(...)) -> dict[str, Any]:
+        """Read a stats table from a photo or screenshot of a finished game.
+
+        The photo is kept with the game. The stats read from it are returned
+        for review, not saved: the caller confirms them with PATCH."""
+        game = store.get_game(game_id)
+        if game is None:
+            raise HTTPException(404, "Game not found")
+        data = await file.read(MAX_PHOTO_BYTES + 1)
+        if len(data) > MAX_PHOTO_BYTES:
+            raise HTTPException(413, "Photo is too large")
+        try:
+            image = decode_image(data)
+        except ValueError:
+            raise HTTPException(422, "File is not a readable image") from None
+
+        opponent = store.get_opponent(game["opponent_id"])
+        async with analysis_lock:
+            stats = await run_in_threadpool(
+                read_stats_image,
+                image,
+                processor.reader,
+                processor.tracker.state["your_name"],
+                opponent["name"] if opponent else None,
+            )
+
+        extension = "png" if data.startswith(b"\x89PNG") else "jpg"
+        filename = f"{uuid.uuid4().hex}.{extension}"
+        (settings.frames_dir / filename).write_bytes(data)
+        frame = store.create_frame("stats_photo", filename)
+        store.update_game(game_id, {"stats_frame_id": frame["id"]})
+
+        # Points in the photo should match the score already recorded.
+        warnings = []
+        for side, key, label in (
+            ("you", "your_score", "your"),
+            ("opponent", "opponent_score", "the opponent's"),
+        ):
+            points = stats.get(side, {}).get("PTS")
+            if points is None:
+                warnings.append(f"Could not read {label} points.")
+            elif points != game[key]:
+                warnings.append(
+                    f"Read {points} for {label} points, but the recorded score is {game[key]}."
+                )
+        return {"stats": stats, "photo_url": frame["url"], "warnings": warnings}
 
     @api.delete("/games/{game_id}", status_code=204)
     async def delete_game(game_id: int) -> None:

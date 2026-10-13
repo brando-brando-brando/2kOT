@@ -15,6 +15,8 @@ export function formatStreak(streak?: number): string {
   return streak > 0 ? `W${streak}` : `L${Math.abs(streak)}`;
 }
 
-export function formatOverallAndBuild(overall?: number, build?: string): string {
-  return [overall ? `OVR ${overall}` : null, build].filter(Boolean).join(' | ');
+export function formatOverallAndBuild(overall?: number, build?: string, level?: number): string {
+  return [overall ? `OVR ${overall}` : null, level ? `Lvl ${level}` : null, build]
+    .filter(Boolean)
+    .join(' | ');
 }

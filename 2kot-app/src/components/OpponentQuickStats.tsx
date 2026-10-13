@@ -26,7 +26,7 @@ export function OpponentQuickStats({
     );
   }
 
-  const subtitle = formatOverallAndBuild(opponent.overall, opponent.build) || opponent.gamertag;
+  const subtitle = formatOverallAndBuild(opponent.overall, opponent.build, opponent.level) || opponent.gamertag;
   const streakTone =
     (opponent.streak ?? 0) > 0
       ? 'text-success'

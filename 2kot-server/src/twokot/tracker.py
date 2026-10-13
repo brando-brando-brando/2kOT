@@ -14,16 +14,19 @@ def resolve_opponent(
     name: str,
     overall: int | None = None,
     build: str | None = None,
+    level: int | None = None,
     threshold: float = DEFAULT_THRESHOLD,
 ) -> dict[str, Any]:
     """Find the opponent this name refers to, creating one when none is close."""
     match = find_best_match(name, store.list_opponents(), threshold)
     if match is None:
-        return store.create_opponent(name, overall=overall, build=build)
+        opponent = store.create_opponent(name, overall=overall, build=build)
+        return store.update_opponent(opponent["id"], {"level": level}) if level else opponent
 
     opponent = dict(match.opponent)
     # Ratings and builds change between games; keep the latest seen.
-    updates = {k: v for k, v in (("overall", overall), ("build", build)) if v is not None}
+    readings = (("overall", overall), ("build", build), ("level", level))
+    updates = {k: v for k, v in readings if v is not None}
     if updates:
         opponent = store.update_opponent(opponent["id"], updates) or opponent
     return opponent
@@ -34,7 +37,11 @@ def record_completed_game(
 ) -> dict[str, Any]:
     """Store a game the session tracker saw finish."""
     opponent = resolve_opponent(
-        store, game.opponent_name, game.opponent_overall, game.opponent_build
+        store,
+        game.opponent_name,
+        game.opponent_overall,
+        game.opponent_build,
+        game.opponent_level,
     )
     if date:
         # Replaying the same recording twice must not record its game twice.

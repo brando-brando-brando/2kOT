@@ -66,4 +66,25 @@ def test_stats_table_totals(reader):
         obs = analyze(name, reader)
         assert obs.kind == ScreenKind.GAME_STATS
         assert (obs.your_points, obs.opponent_points) == (18, 22)
-        assert obs.stats["you"]["GRD"] == "B+" and obs.stats["opponent"]["GRD"] == "A"
+        assert obs.stats["opponent"]["GRD"] == "A"
+        assert obs.stats["you"]["FGM/FGA"] == "8/13"
+        assert obs.stats["opponent"]["FGM/FGA"] == "10/14"
+
+
+def test_full_resolution_capture_reads_everything(reader):
+    """At 1080p the card's rating and level, unreadable at 480p, come through."""
+    mine = analyze("hd_0025", reader).player
+    assert (mine.name, mine.overall, mine.level) == ("iAmKngBrando", 98, 22)
+    theirs = analyze("hd_0033", reader).player
+    assert (theirs.overall, theirs.build) == (89, "3-Levelballhawk")
+
+    matchup = analyze("hd_0045", reader)
+    assert (matchup.left.name, matchup.left.overall) == ("iAmKngBrando", 98)
+    assert (matchup.right.overall, matchup.right.position) == (89, "PG")
+    assert matchup.right.build == "3-Level Ball Hawk"
+
+    game = analyze("hd_0300", reader)
+    assert (game.left_score, game.right_score) == (6, 10)
+
+    won = analyze("hd_0611", reader)
+    assert (won.outcome, won.score_pair) == ("win", (22, 12))

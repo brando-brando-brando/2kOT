@@ -25,6 +25,7 @@ from ..session import Observation, PlayerRead, ScreenKind
 from . import parse
 from .preprocess import Region, crop
 from .reader import TextBox, TextReader
+from .stats_table import parse_stats_boxes
 
 # Frames are brought to at least this width before reading. Small captures
 # (e.g. 640x480) are upscaled, which also undoes any 4:3 squash of the 16:9 game.
@@ -44,11 +45,12 @@ WINNERS = box(0.20, 0.035, 0.51, 0.12)  # "WINNERS CIRCLE"
 GAME_STATS = box(0.19, 0.18, 0.34, 0.235)  # "GAME STATS"
 SCORE_LEFT = box(0.400, 0.895, 0.452, 0.955)
 SCORE_RIGHT = box(0.532, 0.895, 0.584, 0.955)
-RESULT_SCORE = box(0.40, 0.56, 0.555, 0.632)  # "22 - 18" under YOU WON / YOU LOST
 
 # Value regions: read with the find-and-read pass ------------------------------
 
-RESULT_TEXT = box(0.03, 0.06, 0.85, 0.72)  # "YOU WON" / "YOU LOST", animated
+# "YOU WON" / "YOU LOST" and the score under it. Both animate, and the win
+# and loss screens place the score differently, so neither has a fixed box.
+RESULT_TEXT = box(0.03, 0.06, 0.85, 0.72)
 PLAYER_CARD = box(0.34, 0.70, 0.68, 0.88)
 CARD_OVERALL = box(0.555, 0.782, 0.60, 0.828)
 CARD_LEVEL = box(0.62, 0.79, 0.66, 0.83)
@@ -59,7 +61,6 @@ SCORE_NAME_LEFT = box(0.355, 0.842, 0.475, 0.888)
 SCORE_NAME_RIGHT = box(0.525, 0.842, 0.645, 0.888)
 STATS_TABLE = box(0.15, 0.24, 0.86, 0.56)
 
-STAT_COLUMNS = ("GRD", "PTS", "REB", "AST", "STL", "BLK", "FOULS", "TO", "FGM/FGA", "3PM/3PA")
 POSITIONS = ("PG", "SG", "SF", "PF", "C")
 
 
@@ -162,7 +163,7 @@ def _looks_like_result(frame: np.ndarray, reader: TextReader) -> bool:
     hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
     bright_letters = np.mean((hsv[..., 2] > 200) & (hsv[..., 1] < 70))
     tinted_backdrop = np.mean((hsv[..., 1] > 120) & (hsv[..., 2] > 40))
-    if not (0.04 < bright_letters < 0.45 and tinted_backdrop > 0.25):
+    if not (0.04 < bright_letters < 0.45 and tinted_backdrop > 0.15):
         return False
     return _result_outcome(_boxes(frame, RESULT_TEXT, reader, scale=0.75)) is not None
 
@@ -192,10 +193,19 @@ def _clean_gamertag(text: str) -> str | None:
 def read_player_card(frame: np.ndarray, reader: TextReader) -> PlayerRead:
     """Name, rating, level and build from a YOU / OPPONENT load screen card."""
     name = build = None
+    overall = level = None
     for item in _boxes(frame, PLAYER_CARD, reader):
         if item.confidence < 0.5:
             continue
-        if 0.52 <= item.cy <= 0.80 and item.cx < 0.62 and re.search(r"[A-Za-z]{3}", item.text):
+        digits = re.fullmatch(r"\d{1,2}", item.text)
+        if digits and 0.5 <= item.cy <= 0.8:
+            # The rating sits beside "OVR"; the level is the number right of it.
+            value = int(item.text)
+            if 0.62 <= item.cx < 0.78 and 40 <= value <= 99:
+                overall = value
+            elif 0.78 <= item.cx <= 0.96 and 1 <= value <= 99:
+                level = value
+        elif 0.52 <= item.cy <= 0.80 and item.cx < 0.62 and re.search(r"[A-Za-z]{3}", item.text):
             # The gamertag sits beside a platform icon OCR may glue to its front.
             candidate = _clean_gamertag(item.text)
             if candidate and (name is None or len(candidate) > len(name)):
@@ -203,9 +213,12 @@ def read_player_card(frame: np.ndarray, reader: TextReader) -> PlayerRead:
         elif item.cy > 0.80:
             build = _clean_build(item.text) or build
 
-    # Small digits: read larger. Unclear readings are dropped, not guessed.
-    overall = _number(*_line(frame, CARD_OVERALL, reader, height=64), low=40, high=99)
-    level = _number(*_line(frame, CARD_LEVEL, reader, height=64), low=1, high=99)
+    # On small captures the find-and-read pass misses these digits; reading
+    # their boxes directly, larger, recovers some. Unclear readings are dropped.
+    if overall is None:
+        overall = _number(*_line(frame, CARD_OVERALL, reader, height=64), low=40, high=99)
+    if level is None:
+        level = _number(*_line(frame, CARD_LEVEL, reader, height=64), low=1, high=99)
     return PlayerRead(name=name, overall=overall, level=level, build=build)
 
 
@@ -249,36 +262,9 @@ def _scoreboard_name(text: str, confidence: float) -> str | None:
     return parse.clean_name(text)
 
 
-def _stat_value(text: str) -> int | str:
-    cleaned = text.replace(" ", "")
-    return int(cleaned) if cleaned.isdigit() else cleaned
-
-
 def read_stats_table(frame: np.ndarray, reader: TextReader) -> dict[str, Any]:
-    """The GAME STATS table: per-side TOTAL rows keyed by column name."""
-    items = [b for b in _boxes(frame, STATS_TABLE, reader) if b.confidence >= 0.5]
-
-    def is_header(item: TextBox, column: str) -> bool:
-        return _letters(item.text) == _letters(column)
-
-    totals = sorted((b for b in items if _letters(b.text) == "TOTAL"), key=lambda b: b.cy)
-    result: dict[str, Any] = {}
-    for side, total in zip(("you", "opponent"), totals, strict=False):
-        # Each side's table has its own header row just above its rows.
-        headers = {}
-        for column in STAT_COLUMNS:
-            candidates = [b for b in items if is_header(b, column) and b.cy < total.cy]
-            if candidates:
-                headers[column] = max(candidates, key=lambda b: b.cy).cx
-        row = {}
-        for item in items:
-            if item is total or abs(item.cy - total.cy) > 0.03 or not headers:
-                continue
-            column = min(headers, key=lambda c: abs(headers[c] - item.cx))
-            if abs(headers[column] - item.cx) < 0.035:
-                row[column] = _stat_value(item.text)
-        result[side] = row
-    return result
+    """The in-game GAME STATS table, as {"you": {...}, "opponent": {...}}."""
+    return parse_stats_boxes(_boxes(frame, STATS_TABLE, reader))
 
 
 def _points(row: dict[str, Any] | None) -> int | None:
@@ -309,10 +295,13 @@ def extract(frame: np.ndarray, kind: ScreenKind, reader: TextReader) -> Observat
         )
 
     if kind == ScreenKind.GAME_RESULT:
-        outcome = _result_outcome(_boxes(frame, RESULT_TEXT, reader, scale=0.75))
-        score_text, score_conf = _line(frame, RESULT_SCORE, reader)
-        pair = parse.parse_score(score_text) if score_conf >= 0.7 else None
-        return Observation(kind=kind, outcome=outcome, score_pair=pair)
+        found = _boxes(frame, RESULT_TEXT, reader, scale=0.75)
+        pair = None
+        for item in found:
+            # The score is the only "N - M" on the screen.
+            if item.confidence >= 0.7 and re.fullmatch(r"\d{1,3}\s*[-–—]\s*\d{1,3}", item.text):
+                pair = parse.parse_score(item.text)
+        return Observation(kind=kind, outcome=_result_outcome(found), score_pair=pair)
 
     if kind == ScreenKind.GAME_STATS:
         stats = read_stats_table(frame, reader)

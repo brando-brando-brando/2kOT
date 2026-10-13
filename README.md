@@ -38,7 +38,8 @@ cd 2kot-app && npm run build && npm run lint
 ## API
 
 All under `/api`: `GET/POST /opponents`, `GET/PATCH/DELETE /opponents/{id}`,
-`GET /games`, `POST /game_result`, `DELETE /games/{id}`, `GET /stats`,
+`GET /games`, `POST /game_result`, `PATCH/DELETE /games/{id}`,
+`POST /games/{id}/stats_photo`, `GET /stats`,
 `GET /stats/{opponent_id}`, `POST /frames`, `POST /frames/analyze`,
 `GET /frames/{id}/image`,
 `GET /live`. Interactive docs are at http://127.0.0.1:8787/docs while the
@@ -51,8 +52,8 @@ calibrated on one recorded 1v1 Theater game (`2kot-frame-capture/samples`).
 
 | Screen | Label | What is read |
 | --- | --- | --- |
-| "YOU" player card | `my_player_load_screen` | your name, rating |
-| "OPPONENT" player card | `opponent_player_load_screen` | opponent name, rating |
+| "YOU" player card | `my_player_load_screen` | your name, rating, level |
+| "OPPONENT" player card | `opponent_player_load_screen` | opponent name, rating, level |
 | Player Matchup | `player_matchup` | both names, ratings, positions, builds; one frame is kept for the dashboard |
 | Gameplay (scoreboard visible) | `in_game` | live score |
 | YOU WON / YOU LOST | `game_result` | outcome and final score |
@@ -85,11 +86,23 @@ would be recorded without touching the database.
 cd 2kot-server && uv run python -m twokot.replay --dry-run ../2kot-frame-capture/samples/raw/<export>.json
 ```
 
+### Stats from a photo
+
+The stats screen only appears if you bring it up, so a game can be recorded
+without it. To add stats afterwards, open the game from Game History and use
+**Add Stats Photo** with a photo or screenshot of any screen that shows a
+box-score table. The values read are shown for review and are saved only when
+you press Save Stats; every cell can also be typed or corrected by hand.
+
+The reader finds the table by its column names (PTS, REB, AST, ...) rather
+than by position, so it does not depend on the screen layout. It is tested on
+the in-game stats screen only; other layouts need sample photos to confirm.
+
 ### Known limits
 
-- Capture below 720p (the first samples were 640x480) is too small for the
+- Capture below 720p (the first sample was 640x480) is too small for the
   card level, and makes card ratings and the stats table unreliable. The
-  capture tool now asks the device for 1920x1080.
-- Calibrated on a single game and mode. Other modes may place things
+  capture tool asks the device for 1920x1080, where these read cleanly.
+- Calibrated on two games in one mode (1v1 Theater), one loss and one win. Other modes may place things
   differently and will need their own samples.
 - Game mode is taken from the matchup screen's subtitle.

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ServerOff, X } from 'lucide-react';
-import type { Game, Opponent, Statistics } from './types';
+import type { Game, GameStats, Opponent, Statistics } from './types';
 import type { AppView, CaptureState, LiveState } from './types/dashboard';
 import { api, type NewGameResult } from './api/client';
 import { buildDashboardData, toOpponentSummary } from './data/dashboardData';
@@ -9,6 +9,7 @@ import { formatStreak } from './utils/format';
 import { AddOpponentDialog } from './components/AddOpponentDialog';
 import { AppShell } from './components/AppShell';
 import { DashboardView } from './components/DashboardView';
+import { GameDetailDialog } from './components/GameDetailDialog';
 import { GameHistoryTable } from './components/GameHistoryTable';
 import { LogGameDialog } from './components/LogGameDialog';
 import { OpponentList } from './components/OpponentList';
@@ -55,6 +56,7 @@ function App() {
   const [view, setView] = useState<AppView>('dashboard');
   const [showAddOpponent, setShowAddOpponent] = useState(false);
   const [showLogGame, setShowLogGame] = useState(false);
+  const [detailGameId, setDetailGameId] = useState<number | null>(null);
   const [selectedOpponentId, setSelectedOpponentId] = useState<number | null>(null);
   const [opponentSearchQuery, setOpponentSearchQuery] = useState('');
 
@@ -125,6 +127,16 @@ function App() {
     }
     await refresh();
   };
+
+  const handleSaveStats = async (id: number, stats: GameStats | null) => {
+    // Errors propagate to the dialog, which shows them.
+    await api.updateGame(id, { stats });
+    await refresh();
+  };
+
+  const detailGame = games.find((game) => game.id === detailGameId) ?? null;
+  // Sample rows are not real games, so they have no details to open.
+  const openGame = (id: number) => setDetailGameId(id);
 
   const dashboard = useMemo(
     () => buildDashboardData(opponents, games, stats, live),
@@ -205,6 +217,7 @@ function App() {
             data={dashboard}
             enhancements={futureEnhancements}
             onViewAllGames={() => setView('stats')}
+            onSelectGame={dashboard.isSample ? undefined : openGame}
             onViewAllOpponents={() => setView('opponents')}
           />
         )}
@@ -250,6 +263,7 @@ function App() {
             <GameHistoryTable
               games={dashboard.history}
               // Sample rows are not real games, so there is nothing to delete.
+              onSelectGame={dashboard.isSample ? undefined : openGame}
               onDeleteGame={dashboard.isSample ? undefined : handleDeleteGame}
               className="@4xl:col-span-12"
             />
@@ -294,6 +308,19 @@ function App() {
 
       {showAddOpponent && (
         <AddOpponentDialog onAdd={handleAddOpponent} onClose={() => setShowAddOpponent(false)} />
+      )}
+
+      {detailGame && (
+        <GameDetailDialog
+          key={detailGame.id}
+          game={detailGame}
+          opponentName={
+            opponents.find((o) => o.id === detailGame.opponent_id)?.name ?? 'Unknown'
+          }
+          onReadPhoto={(photo) => api.readStatsPhoto(detailGame.id, photo)}
+          onSaveStats={(stats) => handleSaveStats(detailGame.id, stats)}
+          onClose={() => setDetailGameId(null)}
+        />
       )}
 
       {showLogGame && (

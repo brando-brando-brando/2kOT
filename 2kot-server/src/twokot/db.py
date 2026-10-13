@@ -50,7 +50,7 @@ CREATE INDEX IF NOT EXISTS idx_games_date ON games(date);
 # Opponent rows joined with their head-to-head totals.
 _OPPONENT_SELECT = """
 SELECT
-  o.id, o.name, o.gamertag, o.overall, o.build, o.created_at,
+  o.id, o.name, o.gamertag, o.overall, o.level, o.build, o.created_at,
   COUNT(g.id) AS total_games,
   COALESCE(SUM(g.outcome = 'win'), 0) AS wins,
   COALESCE(SUM(g.outcome = 'loss'), 0) AS losses,
@@ -59,7 +59,7 @@ FROM opponents o
 LEFT JOIN games g ON g.opponent_id = o.id
 """
 
-FRAME_KINDS = ("matchup", "player_matchup", "end_game", "in_game", "other")
+FRAME_KINDS = ("matchup", "player_matchup", "end_game", "in_game", "stats_photo", "other")
 
 
 def now_iso() -> str:
@@ -70,10 +70,20 @@ def connect(db_path: Path | str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Columns added after the first release are created by the checks below,
+    # so the same code path serves new and existing databases.
     conn.executescript(SCHEMA)
     # Databases created before the stats table was read lack this column.
-    if "stats" not in {row["name"] for row in conn.execute("PRAGMA table_info(games)")}:
+    if "level" not in {row["name"] for row in conn.execute("PRAGMA table_info(opponents)")}:
+        conn.execute("ALTER TABLE opponents ADD COLUMN level INTEGER")
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(games)")}
+    if "stats" not in columns:
         conn.execute("ALTER TABLE games ADD COLUMN stats TEXT")
+    if "stats_frame_id" not in columns:
+        conn.execute(
+            "ALTER TABLE games ADD COLUMN stats_frame_id INTEGER"
+            " REFERENCES frames(id) ON DELETE SET NULL"
+        )
     return conn
 
 
@@ -88,6 +98,7 @@ def _opponent(row: sqlite3.Row) -> dict[str, Any]:
         "name": row["name"],
         "gamertag": row["gamertag"],
         "overall": row["overall"],
+        "level": row["level"],
         "build": row["build"],
         "total_games": total,
         "wins": row["wins"],
@@ -111,6 +122,7 @@ def _game(row: sqlite3.Row) -> dict[str, Any]:
         "stats": json.loads(row["stats"]) if row["stats"] else None,
         "start_frame_path": _frame_url(row["start_frame_id"]),
         "end_frame_path": _frame_url(row["end_frame_id"]),
+        "stats_photo_path": _frame_url(row["stats_frame_id"]),
     }
 
 
@@ -154,7 +166,11 @@ class Store:
         return opponent
 
     def update_opponent(self, opponent_id: int, fields: dict[str, Any]) -> dict[str, Any] | None:
-        allowed = {k: v for k, v in fields.items() if k in ("name", "gamertag", "overall", "build")}
+        allowed = {
+            k: v
+            for k, v in fields.items()
+            if k in ("name", "gamertag", "overall", "level", "build")
+        }
         if allowed:
             assignments = ", ".join(f"{column} = ?" for column in allowed)
             with self.conn:
@@ -220,6 +236,18 @@ class Store:
         game = self.get_game(cur.lastrowid)
         assert game is not None
         return game
+
+    def update_game(self, game_id: int, fields: dict[str, Any]) -> dict[str, Any] | None:
+        allowed = {k: v for k, v in fields.items() if k in ("game_type", "stats", "stats_frame_id")}
+        if "stats" in allowed:
+            allowed["stats"] = json.dumps(allowed["stats"]) if allowed["stats"] else None
+        if allowed:
+            assignments = ", ".join(f"{column} = ?" for column in allowed)
+            with self.conn:
+                self.conn.execute(
+                    f"UPDATE games SET {assignments} WHERE id = ?", (*allowed.values(), game_id)
+                )
+        return self.get_game(game_id)
 
     def delete_game(self, game_id: int) -> bool:
         with self.conn:

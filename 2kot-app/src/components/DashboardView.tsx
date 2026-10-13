@@ -13,10 +13,17 @@ interface DashboardViewProps {
   data: DashboardData;
   enhancements: string[];
   onViewAllGames?: () => void;
+  onSelectGame?: (id: number) => void;
   onViewAllOpponents?: () => void;
 }
 
-export function DashboardView({ data, enhancements, onViewAllGames, onViewAllOpponents }: DashboardViewProps) {
+export function DashboardView({
+  data,
+  enhancements,
+  onViewAllGames,
+  onSelectGame,
+  onViewAllOpponents,
+}: DashboardViewProps) {
   return (
     <div className="grid grid-cols-1 gap-4 @4xl:grid-cols-12">
       <CurrentGameCard game={data.currentGame} className="@4xl:col-span-8" />
@@ -29,6 +36,7 @@ export function DashboardView({ data, enhancements, onViewAllGames, onViewAllOpp
         games={data.history}
         limit={5}
         onViewAll={onViewAllGames}
+        onSelectGame={onSelectGame}
         className="@4xl:col-span-12"
       />
 
